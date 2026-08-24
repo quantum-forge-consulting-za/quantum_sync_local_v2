@@ -576,6 +576,9 @@ std::string HttpServer::getMainPage() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuantumSync Local</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPCEtLSBRdWFudHVtIFggV29ya3Mg4oCUIE1hcmsgb25seSAoaWNvbikuIFJlZmluZWQgYXRvbSArIGNvZGUgYnJhY2tldHMuIC0tPgogIDwhLS0gTm8gZmlsdGVycywgbm8gYmluYXJ5IHRleHQ6IGJ1aWx0IHRvIHJlYWQgY2xlYW4gYXQgYW55IHNpemUgaW5jbC4gZmF2aWNvbi4gLS0+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9InF4d0dyYWQiIHgxPSIwIiB5MT0iMCIgeDI9IjUxMiIgeTI9IjUxMiIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMwRjczQzMiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMDBCNkYxIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJxeHdDb3JlIiB4MT0iMjA2IiB5MT0iMjA2IiB4Mj0iMzA2IiB5Mj0iMzA2IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzAwQjZGMSIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMwRjczQzMiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgoKICA8IS0tIE9yYml0YWwgcmluZ3MgKDMsIGV2ZW5seSByb3RhdGVkKSAtLT4KICA8ZyBzdHJva2U9InVybCgjcXh3R3JhZCkiIHN0cm9rZS13aWR0aD0iMTAiIGZpbGw9Im5vbmUiIG9wYWNpdHk9IjAuODUiPgogICAgPGVsbGlwc2UgY3g9IjI1NiIgY3k9IjI1NiIgcng9IjE1MCIgcnk9IjY2Ii8+CiAgICA8ZWxsaXBzZSBjeD0iMjU2IiBjeT0iMjU2IiByeD0iMTUwIiByeT0iNjYiIHRyYW5zZm9ybT0icm90YXRlKDYwIDI1NiAyNTYpIi8+CiAgICA8ZWxsaXBzZSBjeD0iMjU2IiBjeT0iMjU2IiByeD0iMTUwIiByeT0iNjYiIHRyYW5zZm9ybT0icm90YXRlKDEyMCAyNTYgMjU2KSIvPgogIDwvZz4KCiAgPCEtLSBDb2RlIGJyYWNrZXRzIOKAlCBoZWF2aWVyLCBzaW1wbGUsIGZyYW1lIHRoZSBhdG9tIC0tPgogIDxwYXRoIGQ9Ik0xMzIgMTUwIEw4NiAyNTYgTDEzMiAzNjIiIHN0cm9rZT0iIzAwQjZGMSIgc3Ryb2tlLXdpZHRoPSIyNiIKICAgICAgICBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGZpbGw9Im5vbmUiLz4KICA8cGF0aCBkPSJNMzgwIDE1MCBMNDI2IDI1NiBMMzgwIDM2MiIgc3Ryb2tlPSIjMDBCNkYxIiBzdHJva2Utd2lkdGg9IjI2IgogICAgICAgIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgoKICA8IS0tIE9yYml0aW5nIGVsZWN0cm9ucyAoMywgb25lIHBlciByaW5nIGludGVyc2VjdGlvbikgLS0+CiAgPGNpcmNsZSBjeD0iMjU2IiBjeT0iMTkwIiByPSIxNiIgZmlsbD0iIzBGNzNDMyIvPgogIDxjaXJjbGUgY3g9IjMxMyIgY3k9IjI4OSIgcj0iMTYiIGZpbGw9IiMwRjczQzMiLz4KICA8Y2lyY2xlIGN4PSIxOTkiIGN5PSIyODkiIHI9IjE2IiBmaWxsPSIjMEY3M0MzIi8+CgogIDwhLS0gTnVjbGV1cyAtLT4KICA8Y2lyY2xlIGN4PSIyNTYiIGN5PSIyNTYiIHI9IjUwIiBmaWxsPSJ1cmwoI3F4d0NvcmUpIi8+CiAgPGNpcmNsZSBjeD0iMjU2IiBjeT0iMjU2IiByPSIyMCIgZmlsbD0iI0ZGRkZGRiIvPgo8L3N2Zz4K">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;700;900&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -595,8 +598,18 @@ std::string HttpServer::getMainPage() {
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.1);
         }
-        h1 { font-size: 1.4em; margin-bottom: 2px; }
-        .subtitle { color: rgba(255,255,255,0.5); font-size: 0.85em; margin-bottom: 20px; }
+        .brand-header { text-align: center; margin-bottom: 16px; }
+        .brand-header svg { display: block; margin: 0 auto 6px; height: 52px; width: auto; }
+        .brand-caption { color: rgba(255,255,255,0.35); font-size: 0.7em; text-transform: uppercase; letter-spacing: 2px; }
+        .subtitle { color: rgba(255,255,255,0.6); font-size: 0.95em; margin: 4px 0 20px; text-align: center; font-weight: 500; }
+        .footer-brand {
+            margin-top: 18px; padding-top: 14px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            text-align: center;
+        }
+        .footer-brand img { max-height: 40px; max-width: 200px; display: block; margin: 0 auto 6px; }
+        .footer-powered { color: rgba(255,255,255,0.3); font-size: 0.7em; letter-spacing: 1px; }
+        .footer-powered span { color: rgba(255,255,255,0.45); font-weight: 600; }
 
         .now-playing {
             background: rgba(255,255,255,0.05);
@@ -692,7 +705,47 @@ std::string HttpServer::getMainPage() {
 </head>
 <body>
     <div class="card">
-        <h1>QuantumSync Local <span style="font-size:0.6em;color:rgba(255,255,255,0.35)">v2</span></h1>
+        <div class="brand-header">
+            <svg viewBox="0 0 960 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="hGrad" x1="40" y1="40" x2="240" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F73C3"/>
+      <stop offset="1" stop-color="#00B6F1"/>
+    </linearGradient>
+    <linearGradient id="hCore" x1="116" y1="116" x2="164" y2="164" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00B6F1"/>
+      <stop offset="1" stop-color="#0F73C3"/>
+    </linearGradient>
+    <linearGradient id="hX" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00B6F1"/>
+      <stop offset="1" stop-color="#9013FE"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(20,20) scale(0.46875)">
+    <g stroke="url(#hGrad)" stroke-width="10" fill="none" opacity="0.85">
+      <ellipse cx="256" cy="256" rx="150" ry="66"/>
+      <ellipse cx="256" cy="256" rx="150" ry="66" transform="rotate(60 256 256)"/>
+      <ellipse cx="256" cy="256" rx="150" ry="66" transform="rotate(120 256 256)"/>
+    </g>
+    <path d="M132 150 L86 256 L132 362" stroke="#00B6F1" stroke-width="26"
+          stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M380 150 L426 256 L380 362" stroke="#00B6F1" stroke-width="26"
+          stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="256" cy="190" r="16" fill="#0F73C3"/>
+    <circle cx="313" cy="289" r="16" fill="#0F73C3"/>
+    <circle cx="199" cy="289" r="16" fill="#0F73C3"/>
+    <circle cx="256" cy="256" r="50" fill="url(#hCore)"/>
+    <circle cx="256" cy="256" r="20" fill="#FFFFFF"/>
+  </g>
+  <text x="320" y="128" font-family="'Exo 2', 'Exo2', sans-serif" font-size="78"
+        font-weight="700" letter-spacing="2" fill="#FFFFFF">QUANTUM</text>
+  <text x="320" y="212" font-family="'Exo 2', 'Exo2', sans-serif" font-size="78"
+        font-weight="300" letter-spacing="10" fill="#B0B9BF">WORKS</text>
+  <text x="700" y="212" font-family="'Exo 2', 'Exo2', sans-serif" font-size="92"
+        font-weight="900" fill="url(#hX)">X</text>
+</svg>
+            <div class="brand-caption">QuantumSync Local &middot; v2</div>
+        </div>
         <div class="subtitle" id="deviceName">Loading...</div>
 
         <div class="now-playing">
@@ -748,6 +801,11 @@ std::string HttpServer::getMainPage() {
                 <span class="status-label"></span>
                 <a href="/logs" class="back-link">View Logs</a>
             </div>
+        </div>
+
+        <div class="footer-brand">
+            <!--CLIENT_LOGO-->
+            <div class="footer-powered">Powered by <span>Quantum X Works</span></div>
         </div>
     </div>
 
