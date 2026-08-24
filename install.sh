@@ -28,6 +28,12 @@ fi
 # ──────────────────────────────────────────────
 echo -e "${YELLOW}[Phase 1] Cleaning up old QuantumSync...${NC}"
 
+# Stop our own services if a previous install is running (frees the binary
+# for Phase 4's copy — otherwise cp fails with "Text file busy")
+for svc in quantumsync-local quantumsync-local-mpd; do
+    systemctl stop "$svc" 2>/dev/null || true
+done
+
 # Stop and disable old services
 for svc in quantumsync-client quantumsync-server quantumsync-mpd-watchdog; do
     if systemctl is-active --quiet "$svc" 2>/dev/null; then
