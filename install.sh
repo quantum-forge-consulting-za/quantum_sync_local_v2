@@ -1,6 +1,7 @@
 #!/bin/bash
-# QuantumSync Local — Installation Script
+# QuantumSync Local V2 — Installation Script
 # Installs standalone music player on Raspberry Pi
+# V2 adds: Samba network share for the music folder + folder selection GUI
 # Also cleans up old QuantumSync client/server files
 
 set -e
@@ -12,7 +13,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 echo -e "${GREEN}╔══════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║   QuantumSync Local — Installer      ║${NC}"
+echo -e "${GREEN}║   QuantumSync Local V2 — Installer   ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════╝${NC}"
 echo ""
 
@@ -94,7 +95,10 @@ echo ""
 echo -e "${YELLOW}[Phase 2] Installing dependencies...${NC}"
 
 apt-get update -qq
-apt-get install -y -qq build-essential cmake libboost-all-dev mpd mpc
+apt-get install -y -qq build-essential cmake libboost-all-dev mpd mpc samba
+
+# wsdd2 makes the Pi show up under "Network" in Windows Explorer (optional)
+apt-get install -y -qq wsdd2 2>/dev/null || true
 
 echo -e "${GREEN}  Dependencies installed.${NC}"
 echo ""
@@ -144,6 +148,10 @@ make -j"$(nproc)"
 # Install binary
 cp quantumsync-local /usr/local/bin/quantumsync-local
 chmod 755 /usr/local/bin/quantumsync-local
+
+# Install boot-time queue restore script (remembers selected folder)
+cp "$SCRIPT_DIR/scripts/quantumsync-restore-queue" /usr/local/bin/quantumsync-restore-queue
+chmod 755 /usr/local/bin/quantumsync-restore-queue
 
 cd "$SCRIPT_DIR"
 echo -e "${GREEN}  Build complete. Binary: /usr/local/bin/quantumsync-local${NC}"
@@ -201,9 +209,76 @@ echo -e "${GREEN}  Device name: $DEVICE_NAME${NC}"
 echo ""
 
 # ──────────────────────────────────────────────
-# Phase 7: Install and enable systemd services
+# Phase 7: Samba network share for the music folder
 # ──────────────────────────────────────────────
-echo -e "${YELLOW}[Phase 7] Installing systemd services...${NC}"
+echo -e "${YELLOW}[Phase 7] Setting up network share (\\\\pi\\music)...${NC}"
+
+SHARE_USER="quantumsync"
+SMB_CONF="/etc/samba/smb.conf"
+SHARE_MARKER="[music]"
+
+# Add the share definition once (marker-guarded so re-installs don't duplicate)
+if ! grep -qF "$SHARE_MARKER" "$SMB_CONF" 2>/dev/null; then
+    cat >> "$SMB_CONF" << 'EOF'
+
+# ── QuantumSync Local music share ──
+[music]
+   comment = QuantumSync Music
+   path = /opt/quantumsync-local/music
+   browseable = yes
+   read only = no
+   valid users = quantumsync
+   force user = quantumsync
+   force group = quantumsync
+   create mask = 0664
+   directory mask = 0775
+EOF
+    echo "  Share [music] added to $SMB_CONF"
+else
+    echo "  Share [music] already present in $SMB_CONF"
+fi
+
+# Set (or update) the share password
+SET_PW="y"
+if pdbedit -L 2>/dev/null | grep -q "^$SHARE_USER:"; then
+    read -p "  Samba user '$SHARE_USER' already exists. Reset share password? [y/N]: " SET_PW
+fi
+if [ "$SET_PW" = "y" ] || [ "$SET_PW" = "Y" ]; then
+    while true; do
+        read -s -p "  Enter share password (for connecting from Windows): " SHARE_PW
+        echo ""
+        read -s -p "  Confirm password: " SHARE_PW2
+        echo ""
+        if [ -z "$SHARE_PW" ]; then
+            echo -e "${RED}  Password cannot be empty.${NC}"
+        elif [ "$SHARE_PW" != "$SHARE_PW2" ]; then
+            echo -e "${RED}  Passwords do not match, try again.${NC}"
+        else
+            break
+        fi
+    done
+    printf '%s\n%s\n' "$SHARE_PW" "$SHARE_PW" | smbpasswd -s -a "$SHARE_USER"
+    smbpasswd -e "$SHARE_USER" >/dev/null 2>&1 || true
+    unset SHARE_PW SHARE_PW2
+    echo "  Share password set for user '$SHARE_USER'"
+fi
+
+# Validate config and (re)start services
+testparm -s >/dev/null 2>&1 || echo -e "${YELLOW}  Warning: testparm reported issues with smb.conf${NC}"
+systemctl enable smbd >/dev/null 2>&1 || true
+systemctl restart smbd
+systemctl enable nmbd >/dev/null 2>&1 || true
+systemctl restart nmbd 2>/dev/null || true
+systemctl enable wsdd2 >/dev/null 2>&1 || true
+systemctl restart wsdd2 2>/dev/null || true
+
+echo -e "${GREEN}  Network share ready.${NC}"
+echo ""
+
+# ──────────────────────────────────────────────
+# Phase 8: Install and enable systemd services
+# ──────────────────────────────────────────────
+echo -e "${YELLOW}[Phase 8] Installing systemd services...${NC}"
 
 # Install service files
 cp "$SCRIPT_DIR/systemd/quantumsync-local-mpd.service" /etc/systemd/system/
@@ -228,9 +303,9 @@ echo -e "${GREEN}  Services installed and started.${NC}"
 echo ""
 
 # ──────────────────────────────────────────────
-# Phase 8: Initialize MPD database
+# Phase 9: Initialize MPD database
 # ──────────────────────────────────────────────
-echo -e "${YELLOW}[Phase 8] Initializing MPD...${NC}"
+echo -e "${YELLOW}[Phase 9] Initializing MPD...${NC}"
 
 # Wait for MPD to be ready
 sleep 2
@@ -241,15 +316,13 @@ TRACK_COUNT=$(mpc listall 2>/dev/null | wc -l)
 echo "  Found $TRACK_COUNT tracks in music directory"
 
 if [ "$TRACK_COUNT" -gt 0 ]; then
-    mpc clear 2>/dev/null || true
-    mpc add / 2>/dev/null || true
     mpc repeat on 2>/dev/null || true
     mpc random on 2>/dev/null || true
-    mpc play 2>/dev/null || true
+    /usr/local/bin/quantumsync-restore-queue || true
     echo -e "${GREEN}  Music playing!${NC}"
 else
-    echo -e "${YELLOW}  No music files found. Copy music to /opt/quantumsync-local/music/${NC}"
-    echo "  Then run: mpc update && mpc add / && mpc play"
+    echo -e "${YELLOW}  No music files found. Copy music to the network share \\\\<pi-ip>\\music${NC}"
+    echo "  (or to /opt/quantumsync-local/music/), then click Rescan in the web GUI."
 fi
 
 echo ""
@@ -263,13 +336,16 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║   Installation Complete!             ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════╝${NC}"
 echo ""
-echo "  Device:    $DEVICE_NAME"
-echo "  Web GUI:   http://$IP_ADDR:1706/"
-echo "  Music dir: /opt/quantumsync-local/music/"
+echo "  Device:      $DEVICE_NAME"
+echo "  Web GUI:     http://$IP_ADDR:1706/"
+echo "  Music share: \\\\$IP_ADDR\\music   (user: quantumsync + your share password)"
+echo "  Music dir:   /opt/quantumsync-local/music/"
 echo ""
-echo "  To add music:"
-echo "    scp *.mp3 pi@$IP_ADDR:/opt/quantumsync-local/music/"
-echo "    Then: mpc update && mpc add / && mpc play"
+echo "  To add music from a Windows PC:"
+echo "    Open \\\\$IP_ADDR\\music in File Explorer and copy files in."
+echo "    Make subfolders (e.g. 'Day to Day', 'Christmas') to group music —"
+echo "    they show up as selectable folders in the web GUI."
+echo "    New files are picked up automatically (or click Rescan in the GUI)."
 echo ""
 echo "  Service commands:"
 echo "    systemctl status quantumsync-local"

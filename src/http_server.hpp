@@ -2,6 +2,7 @@
 
 #include <boost/asio.hpp>
 #include <string>
+#include <vector>
 #include <thread>
 #include <atomic>
 #include <mutex>
@@ -9,7 +10,9 @@
 
 class HttpServer {
 public:
-    HttpServer(uint16_t port, const std::string& deviceName);
+    HttpServer(uint16_t port, const std::string& deviceName,
+               const std::string& musicDir = "/opt/quantumsync-local/music",
+               const std::string& stateDir = "/var/lib/quantumsync-local");
     ~HttpServer();
 
     void start();
@@ -27,6 +30,9 @@ private:
     std::string handleMute(const std::string& body);
     std::string handlePlayback(const std::string& body);
     std::string getJournalJson();
+    std::string getFoldersJson();
+    std::string handleFolder(const std::string& body);
+    std::string handleLibraryUpdate();
 
     // Pages
     std::string getMainPage();
@@ -40,11 +46,20 @@ private:
 
     // Shell command helpers
     std::string execCommand(const std::string& cmd);
+    static std::string shellQuote(const std::string& s);
+    static std::string jsonEscape(const std::string& s);
     int getVolume();
     void setVolume(int volume);
 
+    // Folder selection helpers
+    std::vector<std::string> listMusicFolders();
+    std::string loadSelectedFolder();
+    void saveSelectedFolder(const std::string& folder);
+
     uint16_t port_;
     std::string deviceName_;
+    std::string musicDir_;
+    std::string stateDir_;
     std::atomic<bool> running_{false};
     std::atomic<bool> muted_{false};
     int preMuteVolume_{50};

@@ -7,12 +7,16 @@
 #include <thread>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 
 using boost::asio::ip::tcp;
 
-HttpServer::HttpServer(uint16_t port, const std::string& deviceName)
+HttpServer::HttpServer(uint16_t port, const std::string& deviceName,
+                       const std::string& musicDir, const std::string& stateDir)
     : port_(port)
     , deviceName_(deviceName)
+    , musicDir_(musicDir)
+    , stateDir_(stateDir)
 {
 }
 
@@ -29,6 +33,9 @@ void HttpServer::start() {
             acceptLoop();
         } catch (const std::exception& e) {
             std::cerr << "HTTP server error: " << e.what() << std::endl;
+            // A dead accept loop means the GUI is gone for good — exit so
+            // systemd (Restart=always) brings the whole service back up.
+            std::exit(1);
         }
     });
 
@@ -37,6 +44,17 @@ void HttpServer::start() {
 
 void HttpServer::stop() {
     if (!running_.exchange(false)) return;
+
+    // Closing the acceptor does not wake a blocking accept() on Linux, so
+    // poke it with a throwaway local connection to let the loop observe
+    // running_ == false and exit.
+    try {
+        boost::asio::io_context tmp;
+        tcp::socket s(tmp);
+        s.connect(tcp::endpoint(boost::asio::ip::make_address("127.0.0.1"), port_));
+        boost::system::error_code ignored;
+        s.close(ignored);
+    } catch (...) {}
 
     if (acceptor_) {
         boost::system::error_code ec;
@@ -139,6 +157,9 @@ std::string HttpServer::handleRequest(const std::string& method,
     else if (path == "/api/mute" && method == "POST") return handleMute(body);
     else if (path == "/api/playback" && method == "POST") return handlePlayback(body);
     else if (path == "/api/journal" && method == "GET") return getJournalJson();
+    else if (path == "/api/folders" && method == "GET") return getFoldersJson();
+    else if (path == "/api/folder" && method == "POST") return handleFolder(body);
+    else if (path == "/api/update" && method == "POST") return handleLibraryUpdate();
     else if (path == "/logs" || path == "/logs.html") return getLogsPage();
     else if (method == "OPTIONS") return "";
     return "{\"error\":\"Not found\"}";
@@ -160,6 +181,142 @@ std::string HttpServer::execCommand(const std::string& cmd) {
         result.pop_back();
     }
     return result;
+}
+
+std::string HttpServer::shellQuote(const std::string& s) {
+    // Wrap in single quotes; escape embedded single quotes as '\''
+    std::string out = "'";
+    for (char c : s) {
+        if (c == '\'') out += "'\\''";
+        else out += c;
+    }
+    out += "'";
+    return out;
+}
+
+std::string HttpServer::jsonEscape(const std::string& s) {
+    std::string out;
+    for (char c : s) {
+        if (c == '"') out += "\\\"";
+        else if (c == '\\') out += "\\\\";
+        else if (c == '\n') out += "\\n";
+        else if (c == '\r') out += "\\r";
+        else if (c == '\t') out += "\\t";
+        else if (static_cast<unsigned char>(c) < 0x20) out += ' ';
+        else out += c;
+    }
+    return out;
+}
+
+// ─── Folder selection ──────────────────────────────────────────
+
+std::vector<std::string> HttpServer::listMusicFolders() {
+    std::vector<std::string> folders;
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator(musicDir_)) {
+            if (!entry.is_directory()) continue;
+            std::string name = entry.path().filename().string();
+            if (name.empty() || name[0] == '.') continue;  // skip hidden dirs
+            folders.push_back(name);
+        }
+    } catch (...) {}
+    std::sort(folders.begin(), folders.end(), [](const std::string& a, const std::string& b) {
+        return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(),
+            [](char x, char y) { return std::tolower(static_cast<unsigned char>(x))
+                                      < std::tolower(static_cast<unsigned char>(y)); });
+    });
+    return folders;
+}
+
+std::string HttpServer::loadSelectedFolder() {
+    std::ifstream f(stateDir_ + "/selected_folder");
+    if (!f.is_open()) return "";
+    std::string folder;
+    std::getline(f, folder);
+    // Trim whitespace
+    folder.erase(0, folder.find_first_not_of(" \t\r\n"));
+    folder.erase(folder.find_last_not_of(" \t\r\n") + 1);
+    return folder;
+}
+
+void HttpServer::saveSelectedFolder(const std::string& folder) {
+    try {
+        std::ofstream f(stateDir_ + "/selected_folder", std::ios::trunc);
+        if (f.is_open()) f << folder << "\n";
+    } catch (...) {}
+}
+
+std::string HttpServer::getFoldersJson() {
+    std::vector<std::string> folders = listMusicFolders();
+    std::string current = loadSelectedFolder();
+
+    std::ostringstream json;
+    json << "{\"folders\":[";
+    for (size_t i = 0; i < folders.size(); ++i) {
+        if (i > 0) json << ",";
+        json << "\"" << jsonEscape(folders[i]) << "\"";
+    }
+    json << "],\"current\":\"" << jsonEscape(current) << "\"}";
+    return json.str();
+}
+
+std::string HttpServer::handleFolder(const std::string& body) {
+    // Parse "folder" value from JSON body
+    std::string folder;
+    size_t pos = body.find("\"folder\"");
+    if (pos == std::string::npos) return "{\"error\":\"Missing folder\"}";
+    size_t colon = body.find(':', pos + 8);
+    if (colon == std::string::npos) return "{\"error\":\"Missing folder\"}";
+    size_t start = body.find('"', colon);
+    if (start == std::string::npos) return "{\"error\":\"Missing folder\"}";
+    start++;
+    // Read until closing quote, honouring \" and \\ escapes
+    std::string parsed;
+    bool closed = false;
+    for (size_t i = start; i < body.size(); ++i) {
+        char c = body[i];
+        if (c == '\\' && i + 1 < body.size()) {
+            parsed += body[++i];
+        } else if (c == '"') {
+            closed = true;
+            break;
+        } else {
+            parsed += c;
+        }
+    }
+    if (!closed) return "{\"error\":\"Bad folder value\"}";
+    folder = parsed;
+
+    // Empty string means "All Music". Otherwise the name must exactly match
+    // an existing top-level folder (this also blocks any path tricks).
+    if (!folder.empty()) {
+        std::vector<std::string> folders = listMusicFolders();
+        if (std::find(folders.begin(), folders.end(), folder) == folders.end()) {
+            return "{\"error\":\"Unknown folder\"}";
+        }
+    }
+
+    // Swap the queue: clear, add the selection, play.
+    // repeat/random are global MPD settings and stay as they were.
+    execCommand("mpc clear 2>/dev/null");
+    if (folder.empty()) {
+        execCommand("mpc add / 2>/dev/null");
+    } else {
+        execCommand("mpc add " + shellQuote(folder) + " 2>/dev/null");
+    }
+    execCommand("mpc play 2>/dev/null");
+
+    saveSelectedFolder(folder);
+
+    return "{\"result\":\"OK\",\"folder\":\"" + jsonEscape(folder) + "\"}";
+}
+
+std::string HttpServer::handleLibraryUpdate() {
+    // Rescan the music library (picks up files copied in over the network).
+    // Runs in the background; auto_update usually handles this, but the
+    // button gives a guaranteed manual refresh.
+    execCommand("mpc update 2>/dev/null");
+    return "{\"result\":\"OK\"}";
 }
 
 // ─── Volume via amixer ─────────────────────────────────────────
@@ -212,18 +369,12 @@ std::string HttpServer::getStatusJson() {
     json << std::fixed;
     json.precision(1);
     json << "{"
-         << "\"track\":\"";
-    // Escape special chars in track name
-    for (char c : currentTrack) {
-        if (c == '"') json << "\\\"";
-        else if (c == '\\') json << "\\\\";
-        else json << c;
-    }
-    json << "\","
+         << "\"track\":\"" << jsonEscape(currentTrack) << "\","
          << "\"state\":\"" << state << "\","
          << "\"volume\":" << volume << ","
          << "\"muted\":" << (muted_.load() ? "true" : "false") << ","
-         << "\"deviceName\":\"" << deviceName_ << "\","
+         << "\"deviceName\":\"" << jsonEscape(deviceName_) << "\","
+         << "\"folder\":\"" << jsonEscape(loadSelectedFolder()) << "\","
          << "\"trackCount\":" << (trackCount.empty() ? "0" : trackCount) << ","
          << "\"uptimeSec\":" << getUptimeSeconds() << ","
          << "\"cpuPercent\":" << getCpuPercent() << ","
@@ -382,7 +533,7 @@ int HttpServer::getMemTotalMb() {
 
 std::string HttpServer::getJournalJson() {
     std::string result;
-    FILE* pipe = popen("journalctl -u quantumsync-local -u mpd -n 100 --no-pager 2>&1", "r");
+    FILE* pipe = popen("journalctl -u quantumsync-local -u quantumsync-local-mpd -n 100 --no-pager 2>&1", "r");
     if (!pipe) {
         return "{\"error\":\"Failed to read journal\",\"lines\":[],\"count\":0}";
     }
@@ -489,6 +640,17 @@ std::string HttpServer::getMainPage() {
         .ctrl-btn.play-btn { width: 56px; height: 56px; font-size: 1.4em; background: rgba(124,77,255,0.2); border-color: #7c4dff; }
         .ctrl-btn.play-btn:hover { background: rgba(124,77,255,0.5); }
 
+        .folder-section { margin-bottom: 20px; }
+        .folder-section label { display: block; margin-bottom: 8px; color: rgba(255,255,255,0.6); font-size: 0.85em; }
+        .folder-select {
+            width: 100%; padding: 10px 12px; border-radius: 8px;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+            color: #fff; font-size: 0.95em; outline: none; cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .folder-select:hover, .folder-select:focus { border-color: #7c4dff; }
+        .folder-select option { background: #24243e; color: #fff; }
+
         .volume-section { margin-bottom: 20px; }
         .volume-section label { display: block; margin-bottom: 8px; color: rgba(255,255,255,0.6); font-size: 0.85em; }
         .volume-row { display: flex; align-items: center; gap: 12px; }
@@ -519,11 +681,18 @@ std::string HttpServer::getMainPage() {
         .status-value { font-weight: 500; }
         .back-link { color: #7c4dff; text-decoration: none; font-size: 0.8em; }
         .back-link:hover { text-decoration: underline; }
+        .rescan-btn {
+            background: none; border: none; color: #7c4dff;
+            font-size: 0.8em; cursor: pointer; padding: 0;
+            text-decoration: none; font-family: inherit;
+        }
+        .rescan-btn:hover { text-decoration: underline; }
+        .rescan-btn:disabled { color: rgba(255,255,255,0.3); cursor: default; text-decoration: none; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h1>QuantumSync Local</h1>
+        <h1>QuantumSync Local <span style="font-size:0.6em;color:rgba(255,255,255,0.35)">v2</span></h1>
         <div class="subtitle" id="deviceName">Loading...</div>
 
         <div class="now-playing">
@@ -536,6 +705,13 @@ std::string HttpServer::getMainPage() {
             <button class="ctrl-btn" id="prevBtn" title="Previous">&#9198;</button>
             <button class="ctrl-btn play-btn" id="playBtn" title="Play/Pause">&#9654;</button>
             <button class="ctrl-btn" id="nextBtn" title="Next">&#9197;</button>
+        </div>
+
+        <div class="folder-section">
+            <label>Music Folder</label>
+            <select class="folder-select" id="folderSelect">
+                <option value="">All Music</option>
+            </select>
         </div>
 
         <div class="volume-section">
@@ -551,6 +727,10 @@ std::string HttpServer::getMainPage() {
             <div class="status-row">
                 <span class="status-label">Tracks</span>
                 <span class="status-value" id="trackCount">--</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Library</span>
+                <button class="rescan-btn" id="rescanBtn" title="Rescan music folder for new files">Rescan</button>
             </div>
             <div class="status-row">
                 <span class="status-label">CPU</span>
@@ -578,8 +758,41 @@ std::string HttpServer::getMainPage() {
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const muteBtn = document.getElementById('muteBtn');
+        const folderSelect = document.getElementById('folderSelect');
+        const rescanBtn = document.getElementById('rescanBtn');
         let currentState = 'stopped';
         let isMuted = false;
+        let currentFolder = '';
+
+        function loadFolders() {
+            fetch('/api/folders')
+                .then(r => r.json())
+                .then(data => {
+                    const folders = data.folders || [];
+                    currentFolder = data.current || '';
+                    // Rebuild options only if the folder list changed
+                    const existing = Array.from(folderSelect.options).slice(1).map(o => o.value);
+                    if (existing.length !== folders.length ||
+                        existing.some((v, i) => v !== folders[i])) {
+                        folderSelect.innerHTML = '';
+                        const allOpt = document.createElement('option');
+                        allOpt.value = '';
+                        allOpt.textContent = 'All Music';
+                        folderSelect.appendChild(allOpt);
+                        folders.forEach(f => {
+                            const opt = document.createElement('option');
+                            opt.value = f;
+                            opt.textContent = f;
+                            folderSelect.appendChild(opt);
+                        });
+                    }
+                    if (document.activeElement !== folderSelect) {
+                        folderSelect.value = currentFolder;
+                        if (folderSelect.value !== currentFolder) folderSelect.selectedIndex = 0;
+                    }
+                })
+                .catch(() => {});
+        }
 
         function formatUptime(sec) {
             if (sec < 0) return '--';
@@ -614,6 +827,13 @@ std::string HttpServer::getMainPage() {
                     }
                     muteBtn.className = 'mute-btn' + (isMuted ? ' muted' : '');
                     muteBtn.innerHTML = isMuted ? '&#128263;' : '&#128264;';
+
+                    // Folder (keep dropdown in sync unless the user is busy with it)
+                    if (data.folder !== undefined && document.activeElement !== folderSelect) {
+                        currentFolder = data.folder;
+                        folderSelect.value = currentFolder;
+                        if (folderSelect.value !== currentFolder) folderSelect.selectedIndex = 0;
+                    }
 
                     document.getElementById('trackCount').textContent = data.trackCount || '0';
                     document.getElementById('cpuInfo').textContent =
@@ -672,8 +892,45 @@ std::string HttpServer::getMainPage() {
             }).then(() => setTimeout(updateStatus, 300));
         });
 
+        // Folder selector
+        folderSelect.addEventListener('change', function() {
+            const folder = this.value;
+            this.blur();
+            fetch('/api/folder', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({folder: folder})
+            }).then(r => r.json())
+              .then(data => {
+                  if (data.error) {
+                      // Folder vanished? Refresh the list.
+                      loadFolders();
+                  }
+                  currentFolder = data.folder !== undefined ? data.folder : folder;
+                  setTimeout(updateStatus, 400);
+              })
+              .catch(() => {});
+        });
+
+        // Library rescan
+        rescanBtn.addEventListener('click', () => {
+            rescanBtn.disabled = true;
+            rescanBtn.textContent = 'Scanning...';
+            fetch('/api/update', {method: 'POST'})
+                .finally(() => {
+                    setTimeout(() => {
+                        rescanBtn.disabled = false;
+                        rescanBtn.textContent = 'Rescan';
+                        loadFolders();
+                        updateStatus();
+                    }, 3000);
+                });
+        });
+
         updateStatus();
+        loadFolders();
         setInterval(updateStatus, 3000);
+        setInterval(loadFolders, 15000);
     </script>
 </body>
 </html>)HTML";

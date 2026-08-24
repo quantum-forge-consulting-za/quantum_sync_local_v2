@@ -1,7 +1,7 @@
 [Unit]
 Description=QuantumSync Local Player
-After=network.target sound.target mpd.service
-Wants=mpd.service
+After=network.target sound.target quantumsync-local-mpd.service
+Wants=quantumsync-local-mpd.service
 
 [Service]
 Type=simple

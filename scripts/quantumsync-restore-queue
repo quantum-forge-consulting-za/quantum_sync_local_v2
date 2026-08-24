@@ -1,0 +1,23 @@
+#!/bin/sh
+# QuantumSync Local — restore the last selected music folder at boot.
+# Reads /var/lib/quantumsync-local/selected_folder (written by the web GUI)
+# and loads that folder into the MPD queue. Falls back to All Music if the
+# saved folder no longer exists (or nothing was saved).
+
+STATE_FILE="${STATE_FILE:-/var/lib/quantumsync-local/selected_folder}"
+
+FOLDER=""
+if [ -f "$STATE_FILE" ]; then
+    FOLDER=$(head -n 1 "$STATE_FILE" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+fi
+
+mpc clear >/dev/null 2>&1
+
+if [ -n "$FOLDER" ] && mpc ls 2>/dev/null | grep -Fxq "$FOLDER"; then
+    mpc add "$FOLDER" >/dev/null 2>&1
+else
+    mpc add / >/dev/null 2>&1
+fi
+
+mpc play >/dev/null 2>&1
+exit 0

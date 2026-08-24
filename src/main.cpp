@@ -32,7 +32,7 @@ std::string readConfig(const std::string& path, const std::string& key, const st
 }
 
 int main() {
-    std::cout << "QuantumSync Local v1.0" << std::endl;
+    std::cout << "QuantumSync Local v2.0" << std::endl;
 
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
@@ -40,6 +40,8 @@ int main() {
     // Read config
     std::string configPath = "/etc/quantumsync-local/config.conf";
     std::string deviceName = readConfig(configPath, "DEVICE_NAME", "Local Player");
+    std::string musicDir = readConfig(configPath, "MUSIC_DIR", "/opt/quantumsync-local/music");
+    std::string stateDir = readConfig(configPath, "STATE_DIR", "/var/lib/quantumsync-local");
     int port = 1706;
     try {
         port = std::stoi(readConfig(configPath, "HTTP_PORT", "1706"));
@@ -48,7 +50,7 @@ int main() {
     std::cout << "Device: " << deviceName << std::endl;
 
     // Start HTTP server
-    HttpServer server(static_cast<uint16_t>(port), deviceName);
+    HttpServer server(static_cast<uint16_t>(port), deviceName, musicDir, stateDir);
     server.start();
 
     // Block until signal
