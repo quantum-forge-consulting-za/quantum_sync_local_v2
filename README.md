@@ -13,6 +13,11 @@ web GUI on port **1706** for volume, playback and music-folder control.
   `Day to Day`, `Christmas`) and pick which one plays from a dropdown in the
   web GUI. "All Music" plays everything. The choice survives reboots.
 - **Library rescan button** in the GUI to pick up newly copied files on demand.
+- **Branding** — Quantum X Works logo header and a per-venue client logo in the
+  footer. The client logo is served from `/etc/quantumsync-local/client-logo.png`
+  (installed from `branding/client-logo.png`); swap that file to rebrand a
+  player for another venue — no rebuild needed. If the file is absent, the
+  footer just shows the "Powered by" line.
 - Fixed systemd dependency (`quantumsync-local.service` now waits for the
   correct MPD unit) and the logs page now shows the right MPD unit's journal.
 

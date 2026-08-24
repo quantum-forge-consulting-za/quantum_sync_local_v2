@@ -176,6 +176,15 @@ systemctl disable mpd 2>/dev/null || true
 cp "$SCRIPT_DIR/config/mpd.conf" /etc/quantumsync-local/mpd.conf
 chown quantumsync:quantumsync /etc/quantumsync-local/mpd.conf
 
+# Install client branding logo (shown at the bottom of the web GUI).
+# To rebrand for another venue, replace /etc/quantumsync-local/client-logo.png
+# (or branding/client-logo.png in the repo before installing).
+if [ -f "$SCRIPT_DIR/branding/client-logo.png" ]; then
+    cp "$SCRIPT_DIR/branding/client-logo.png" /etc/quantumsync-local/client-logo.png
+    chown quantumsync:quantumsync /etc/quantumsync-local/client-logo.png
+    echo "  Client logo installed."
+fi
+
 echo -e "${GREEN}  MPD configured.${NC}"
 echo ""
 

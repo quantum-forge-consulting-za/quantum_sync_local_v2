@@ -130,6 +130,31 @@ void HttpServer::handleSession(tcp::socket socket) {
         }
     }
 
+    // Client branding logo — served from disk so it can be swapped per venue
+    // without rebuilding (drop a PNG at /etc/quantumsync-local/client-logo.png)
+    if (path == "/client-logo" && method == "GET") {
+        std::string data;
+        std::ifstream f("/etc/quantumsync-local/client-logo.png", std::ios::binary);
+        if (f.is_open()) {
+            std::ostringstream ss;
+            ss << f.rdbuf();
+            data = ss.str();
+        }
+        std::ostringstream r;
+        if (data.empty()) {
+            r << "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+        } else {
+            r << "HTTP/1.1 200 OK\r\n"
+              << "Content-Type: image/png\r\n"
+              << "Content-Length: " << data.size() << "\r\n"
+              << "Cache-Control: max-age=300\r\n"
+              << "Connection: close\r\n\r\n"
+              << data;
+        }
+        boost::asio::write(socket, boost::asio::buffer(r.str()));
+        return;
+    }
+
     std::string content = handleRequest(method, path, body);
 
     std::string content_type = "text/html";
@@ -607,7 +632,7 @@ std::string HttpServer::getMainPage() {
             border-top: 1px solid rgba(255,255,255,0.06);
             text-align: center;
         }
-        .footer-brand img { max-height: 40px; max-width: 200px; display: block; margin: 0 auto 6px; }
+        .footer-brand img { max-height: 72px; max-width: 240px; display: block; margin: 0 auto 8px; }
         .footer-powered { color: rgba(255,255,255,0.3); font-size: 0.7em; letter-spacing: 1px; }
         .footer-powered span { color: rgba(255,255,255,0.45); font-weight: 600; }
 
@@ -804,7 +829,7 @@ std::string HttpServer::getMainPage() {
         </div>
 
         <div class="footer-brand">
-            <!--CLIENT_LOGO-->
+            <img id="clientLogo" src="/client-logo" alt="" onerror="this.style.display='none'">
             <div class="footer-powered">Powered by <span>Quantum X Works</span></div>
         </div>
     </div>
