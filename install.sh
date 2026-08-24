@@ -213,30 +213,44 @@ echo ""
 # ──────────────────────────────────────────────
 echo -e "${YELLOW}[Phase 7] Setting up network share (\\\\pi\\music)...${NC}"
 
-SHARE_USER="quantumsync"
 SMB_CONF="/etc/samba/smb.conf"
-SHARE_MARKER="[music]"
 
-# Add the share definition once (marker-guarded so re-installs don't duplicate)
-if ! grep -qF "$SHARE_MARKER" "$SMB_CONF" 2>/dev/null; then
-    cat >> "$SMB_CONF" << 'EOF'
+# Pick the login user for the share (must be an existing system user).
+# Files are force-owned by quantumsync regardless, so any user works.
+DEFAULT_SHARE_USER="quantumsync"
+if id -u pi &>/dev/null; then
+    DEFAULT_SHARE_USER="pi"
+fi
+while true; do
+    read -p "  Username for connecting to the share [$DEFAULT_SHARE_USER]: " SHARE_USER
+    SHARE_USER="${SHARE_USER:-$DEFAULT_SHARE_USER}"
+    if id -u "$SHARE_USER" &>/dev/null; then
+        break
+    fi
+    echo -e "${RED}  User '$SHARE_USER' does not exist on this system.${NC}"
+done
 
-# ── QuantumSync Local music share ──
+# (Re)write the share definition between markers so re-installs (or a
+# changed username) replace the old block instead of duplicating it.
+touch "$SMB_CONF"
+sed -i '/^# >>> quantumsync-local music share >>>$/,/^# <<< quantumsync-local music share <<<$/d' "$SMB_CONF"
+# Also remove the marker-less block from older V2 installs
+sed -i '/^# ── QuantumSync Local music share ──$/,/^   directory mask = 0775$/d' "$SMB_CONF"
+cat >> "$SMB_CONF" << EOF
+# >>> quantumsync-local music share >>>
 [music]
    comment = QuantumSync Music
    path = /opt/quantumsync-local/music
    browseable = yes
    read only = no
-   valid users = quantumsync
+   valid users = $SHARE_USER
    force user = quantumsync
    force group = quantumsync
    create mask = 0664
    directory mask = 0775
+# <<< quantumsync-local music share <<<
 EOF
-    echo "  Share [music] added to $SMB_CONF"
-else
-    echo "  Share [music] already present in $SMB_CONF"
-fi
+echo "  Share [music] configured for user '$SHARE_USER'"
 
 # Set (or update) the share password
 SET_PW="y"
@@ -338,7 +352,7 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo "  Device:      $DEVICE_NAME"
 echo "  Web GUI:     http://$IP_ADDR:1706/"
-echo "  Music share: \\\\$IP_ADDR\\music   (user: quantumsync + your share password)"
+echo "  Music share: \\\\$IP_ADDR\\music   (user: $SHARE_USER + your share password)"
 echo "  Music dir:   /opt/quantumsync-local/music/"
 echo ""
 echo "  To add music from a Windows PC:"

@@ -6,8 +6,9 @@ web GUI on port **1706** for volume, playback and music-folder control.
 ## What's new in V2
 
 - **Network share** — the music folder is shared on the LAN via Samba as
-  `\\<pi-ip>\music` (username `quantumsync` + the password you choose during
-  install). Copy music straight in from any PC on the network.
+  `\\<pi-ip>\music`. You pick the login username during install (defaults to
+  `pi` when that user exists) plus a share password. Copy music straight in
+  from any PC on the network.
 - **Folder selection** — make subfolders inside the music folder (e.g.
   `Day to Day`, `Christmas`) and pick which one plays from a dropdown in the
   web GUI. "All Music" plays everything. The choice survives reboots.
@@ -29,8 +30,8 @@ builds the C++ server, configures MPD and Samba, and starts everything.
 ## Using it
 
 - Web GUI: `http://<pi-ip>:1706/`
-- Add music: open `\\<pi-ip>\music` in File Explorer, log in as `quantumsync`
-  with your share password, and copy files/folders in.
+- Add music: open `\\<pi-ip>\music` in File Explorer, log in with the share
+  username and password you chose at install, and copy files/folders in.
 - Group music by making subfolders — each top-level subfolder becomes a
   selectable "Music Folder" in the GUI. Files in the root of the share belong
   to "All Music" only.
